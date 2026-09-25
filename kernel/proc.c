@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "pstat.h"
 
 struct cpu cpus[NCPU];
 
@@ -123,6 +124,7 @@ allocproc(void)
 
 found:
   p->pid = allocpid();
+  p->cputime=0; //new process starts at zero
   p->state = USED;
 
   // Allocate a trapframe page.
@@ -418,6 +420,67 @@ kwait(uint64 addr)
   }
 }
 
+int
+kwait2(uint64 addr, uint64 raddr)//modified wait()
+{
+   struct proc *pp;// goes through any child process created
+   int havekids, pid;//keeps track of kids and their PID
+   struct proc *p = myproc();//gets the parent process
+   struct rusage r;// stores child usage first dif from wait
+
+   acquire(&wait_lock);
+
+   for(;;){
+      //scan through table looking for exited children.
+      havekids =0;
+      for(pp = proc; pp < &proc[NPROC]; pp++){
+         if(pp->parent == p){
+           //make sure the child isnt syill in exit() or swtch().
+           acquire(&pp->lock);
+
+           havekids = 1;
+           if(pp->state == ZOMBIE){
+             //Found one.
+             pid = pp->pid;
+             if(addr != 0 &&
+                copyout(p->pagetable, p->sz, addr, 
+                        (char *)&pp->xstate, sizeof(pp->xstate)) < 0){
+                release(&pp->lock);
+                release(&wait_lock);
+                return -1;
+             }
+
+             r.cputime = pp->cputime;//using task 3 to get CPU time of the child
+             if(raddr != 0 &&//copy resource info from kernel memory to parent user mem
+                copyout(p->pagetable, p->sz, raddr, 
+                       (char *)&r, sizeof(r)) < 0){
+                release(&pp->lock);
+                release(&wait_lock);
+                return -1;
+             }//child finsihed 
+             pp->parent = 0;
+             freeproc(pp);//relase resources of finished child
+             release(&pp->lock);
+             release(&wait_lock);
+             return pid;//return child PID
+           }
+           release(&pp->lock);
+         }
+        }
+        //NO point waiting if we dont have any children.
+       if(!havekids || killed(p)){
+         release(&wait_lock);
+         return -1;
+       }
+       // wait for a child to exit
+       sleep_prepare(p);//DOC: wait-sleep
+       release(&wait_lock);
+       sleep();
+       acquire(&wait_lock);
+       }
+    }
+
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -450,7 +513,8 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
-        swtch(&c->context, &p->context);
+        //printk("scheduler: ticks=%d pid=%d name=%s\n", ticks, p->pid, p->name);
+	swtch(&c->context, &p->context);
 
         // Don't re-enable interrupts on release.
         mycpu()->intena = 0;
