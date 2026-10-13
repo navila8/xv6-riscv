@@ -83,7 +83,7 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if (which_dev == 2){
-   p->cputime++;//one CPU tick for running proc 
+   p->cputime++;//one CPU tick for running proc text him when it runs
    yield();
   }
 

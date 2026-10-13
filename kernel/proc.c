@@ -126,7 +126,8 @@ found:
   p->pid = allocpid();
   p->cputime=0; //new process starts at zero
   p->state = USED;
-
+  p->priority = 0; //Default priority for a new process 
+  p->readytime = 0;
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
     freeproc(p);
@@ -226,7 +227,8 @@ userinit(void)
   initproc = p;
 
   p->cwd = namei("/");
-
+ 
+  p->readytime = ticks;
   p->state = RUNNABLE;
 
   release(&p->lock);
@@ -276,6 +278,7 @@ kfork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->priority = p->priority;  //Child inherits parent's priority
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -300,6 +303,7 @@ kfork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
+  np->readytime = ticks;
   np->state = RUNNABLE;
   release(&np->lock);
 
@@ -505,13 +509,16 @@ scheduler(void)
     intr_off();
 
     int found = 0;
+
+#if SCHED_POLICY == SCHED_RR
+    //orginal rr
     for (p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if (p->state == RUNNABLE) {
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
-        p->state = RUNNING;
+	p->state = RUNNING;
         c->proc = p;
         //printk("scheduler: ticks=%d pid=%d name=%s\n", ticks, p->pid, p->name);
 	swtch(&c->context, &p->context);
@@ -526,6 +533,56 @@ scheduler(void)
       }
       release(&p->lock);
     }
+
+#elif SCHED_POLICY ==  SCHED_PRIORITY
+
+    struct proc *best =0;
+    int highest = -1;
+
+    //find the runnable process with hest priority
+    for(p = proc; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->state == RUNNABLE){
+         int effective = p->priority;
+
+#if ENABLE_AGING
+     uint age = ticks - p->readytime;
+     //cap the boost before converting int
+     if(age > (uint)(MAXEFFPRIORITY - effective))
+       effective = MAXEFFPRIORITY;
+     else
+       effective += (int)age;
+#endif
+
+      if(effective > highest){
+        highest = effective;
+        best = p;
+        }
+      }
+
+     release(&p->lock);
+    }
+
+    if(best!=0){
+      acquire(&best->lock);
+
+      if(best->state == RUNNABLE){
+        best->state = RUNNING;
+        c->proc = best;
+
+	//printk("schedule:pid=%d priority=%d name=%s\n", best->pid, best->priority, best->name);
+        swtch(&c->context, &best->context);
+
+        mycpu()->intena = 0;
+        c->proc = 0;
+        found = 1;
+       }
+       release(&best->lock);
+      }
+#else
+#error "Invalid SCHED_POLICY"
+#endif
+
     if (found == 0) {
       // nothing to run; stop running on this core until an interrupt.
       asm volatile("wfi");
@@ -566,6 +623,7 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+  p->readytime = ticks;
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
@@ -652,6 +710,7 @@ wakeup(void *chan)
       // If this waiting process has gotten so far as to actually
       // go to sleep, also set it back to RUNNING.
       if (p->state == SLEEPING) {
+	p->readytime = ticks;
         p->state = RUNNABLE;
       }
     }
@@ -673,6 +732,7 @@ kkill(int pid)
       p->killed = 1;
       if (p->state == SLEEPING) {
         // Wake process from sleep().
+	p->readytime = ticks;
         p->state = RUNNABLE;
       }
       release(&p->lock);
@@ -763,3 +823,44 @@ procdump(void)
     printk("\n");
   }
 }
+int 
+getprocs(uint64 addr)
+{
+   struct proc *p;
+   struct pstat info;
+   int count =0;
+
+   for(p=proc; p<&proc[NPROC]; p++){
+    //Protect parent pointer and process fields
+    acquire(&wait_lock);
+    acquire(&p->lock);
+    if(p->state == UNUSED){
+     release(&p->lock);
+     release(&wait_lock);
+     continue;
+     }
+   memset(&info, 0, sizeof(info));
+   info.pid = p->pid;
+   info.priority = p->priority;
+   info.state =p->state;
+   info.size = p->sz;
+   info.ppid = p->parent ? p->parent->pid : 0;
+   info.readytime = p->readytime;
+   info.cputime = p->cputime;
+   safestrcpy(info.name, p->name, sizeof(info.name));
+
+   release(&p->lock);
+   release(&wait_lock);
+
+   //Supplied address to user program
+   if(copyout(myproc()->pagetable,
+        myproc()->sz,      
+	addr + count * sizeof(info),
+	(char *)&info,
+	sizeof(info)) <0)
+    return -1;
+   count++;
+  }
+  return count;
+}
+

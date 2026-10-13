@@ -120,3 +120,39 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+uint64
+sys_getprocs(void)
+{
+   uint64 addr;
+   argaddr(0, &addr);
+   return getprocs(addr);
+}
+//Return the calling process priority
+uint64
+sys_getpriority(void){
+   struct proc *p = myproc();
+   int priority;
+
+   acquire(&p->lock);
+   priority = p->priority;
+   release(&p->lock);
+
+   return priority;
+}
+
+//Change the calling process's piority.
+uint64
+sys_setpriority(void){
+   int priority;
+   struct proc *p = myproc();
+
+   argint(0, &priority);
+
+   if(priority < 0 || priority > 49)
+      return -1;
+   acquire(&p->lock);
+   p->priority = priority;
+   release(&p->lock);
+
+   return 0;
+}
