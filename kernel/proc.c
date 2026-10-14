@@ -126,6 +126,7 @@ found:
   p->pid = allocpid();
   p->cputime=0; //new process starts at zero
   p->state = USED;
+//initialize fiels when process table is allocated
   p->priority = 0; //Default priority for a new process 
   p->readytime = 0;
   // Allocate a trapframe page.
@@ -227,7 +228,7 @@ userinit(void)
   initproc = p;
 
   p->cwd = namei("/");
- 
+//record start of initial process wait
   p->readytime = ticks;
   p->state = RUNNABLE;
 
@@ -303,6 +304,7 @@ kfork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
+//child is initialized and waits for CPU
   np->readytime = ticks;
   np->state = RUNNABLE;
   release(&np->lock);
@@ -497,7 +499,7 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
+//no process for cpu
   c->proc = 0;
   for (;;) {
     // The most recent process to run may have had interrupts
@@ -520,7 +522,7 @@ scheduler(void)
         // before jumping back to us.
 	p->state = RUNNING;
         c->proc = p;
-        //printk("scheduler: ticks=%d pid=%d name=%s\n", ticks, p->pid, p->name);
+        //printk("scheduler: ticks=%d pid=%d name=%s\n", ticks, p->pid, p->name); used in task 3
 	swtch(&c->context, &p->context);
 
         // Don't re-enable interrupts on release.
@@ -539,13 +541,15 @@ scheduler(void)
     struct proc *best =0;
     int highest = -1;
 
-    //find the runnable process with hest priority
+    //find the runnable process with best priority
     for(p = proc; p < &proc[NPROC]; p++){
       acquire(&p->lock);
+//temp for aged priotority
       if(p->state == RUNNABLE){
          int effective = p->priority;
 
 #if ENABLE_AGING
+//only for current period
      uint age = ticks - p->readytime;
      //cap the boost before converting int
      if(age > (uint)(MAXEFFPRIORITY - effective))
@@ -554,6 +558,7 @@ scheduler(void)
        effective += (int)age;
 #endif
 
+//finds highest aged prioirty
       if(effective > highest){
         highest = effective;
         best = p;
@@ -565,7 +570,7 @@ scheduler(void)
 
     if(best!=0){
       acquire(&best->lock);
-
+//makes sure process is runnable
       if(best->state == RUNNABLE){
         best->state = RUNNING;
         c->proc = best;
@@ -623,8 +628,10 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+//CPU used new waiting period starts 
   p->readytime = ticks;
   p->state = RUNNABLE;
+//control back to schedluer
   sched();
   release(&p->lock);
 }
@@ -710,6 +717,7 @@ wakeup(void *chan)
       // If this waiting process has gotten so far as to actually
       // go to sleep, also set it back to RUNNING.
       if (p->state == SLEEPING) {
+//dont coutnt sleeping time start aging when process becomes runnable
 	p->readytime = ticks;
         p->state = RUNNABLE;
       }
@@ -731,7 +739,7 @@ kkill(int pid)
     if (p->pid == pid) {
       p->killed = 1;
       if (p->state == SLEEPING) {
-        // Wake process from sleep().
+        // Wake process from sleep() so it can run and term
 	p->readytime = ticks;
         p->state = RUNNABLE;
       }
@@ -826,19 +834,23 @@ procdump(void)
 int 
 getprocs(uint64 addr)
 {
+//task 1 
+//copys process information in caller memory array callers gives space for NPROC, returns the number where stored
    struct proc *p;
    struct pstat info;
    int count =0;
 
    for(p=proc; p<&proc[NPROC]; p++){
-    //Protect parent pointer and process fields
+    //Protect parent pointer and process fields and folloes kernel lock order
     acquire(&wait_lock);
     acquire(&p->lock);
+//used not processes so do not look
     if(p->state == UNUSED){
      release(&p->lock);
      release(&wait_lock);
      continue;
      }
+//info that will be displayed
    memset(&info, 0, sizeof(info));
    info.pid = p->pid;
    info.priority = p->priority;

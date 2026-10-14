@@ -120,6 +120,7 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+//gets user arrray address and process info
 uint64
 sys_getprocs(void)
 {

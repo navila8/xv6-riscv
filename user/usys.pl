@@ -44,6 +44,7 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("sync");
+#generate user-side entry points
 entry("getprocs");
 entry("getpriority");
 entry("setpriority");

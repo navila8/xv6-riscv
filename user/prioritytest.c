@@ -4,30 +4,30 @@
 int 
 main(void){
 
-   int rc;
-
+   int p;
+//making sure prioirty is inherited
    printf("Initial priority: %d\n", getpriority());
 
-   rc = setpriority(10);
-   printf("Set 10: return=%d priority=%d\n", rc, getpriority());
-
-   rc = setpriority(-1);
-   printf("Set -1: return=%d priority=%d\n", rc, getpriority());
-
-   rc = setpriority(50);
-   printf("Set 50: return=%d priority=%d\n", rc, getpriority());
-
-   rc = setpriority(49);
-   printf("Set 49: return=%d priority=%d\n", rc, getpriority());
-
-   rc = setpriority(24);
-   printf("Set 24: return=%d priority=%d\n", rc, getpriority());
-
-   rc = setpriority(-10);
-   printf("Set -10: return=%d priority=%d\n", rc, getpriority());
-
-   rc = setpriority(0);
-   printf("Set 0: return=%d priority=%d\n", rc, getpriority());
+   p = setpriority(10);
+   printf("Set 10: return=%d priority=%d\n", p, getpriority());
+//invails
+   p = setpriority(-1);
+   printf("Set -1: return=%d priority=%d\n", p, getpriority());
+//invaild
+   p = setpriority(50);
+   printf("Set 50: return=%d priority=%d\n", p, getpriority());
+//edge
+   p = setpriority(49);
+   printf("Set 49: return=%d priority=%d\n", p, getpriority());
+//fav num
+   p = setpriority(24);
+   printf("Set 24: return=%d priority=%d\n", p, getpriority());
+//invails
+   p = setpriority(-10);
+   printf("Set -10: return=%d priority=%d\n", p, getpriority());
+//edge
+   p = setpriority(0);
+   printf("Set 0: return=%d priority=%d\n", p, getpriority());
   
    exit(0);
 }

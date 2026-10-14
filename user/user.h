@@ -1,6 +1,7 @@
 #define SBRK_ERROR ((char *)-1)
 
 struct stat;
+// caller can pass on psat pointer has to have pstat.h
 struct rusage;
 struct pstat;
 
@@ -28,6 +29,7 @@ char *sys_sbrk(int, int);
 int pause(int);
 int uptime(void);
 int sync(void);
+// process info and priority system calls
 int getprocs(struct pstat *);
 int getpriority(void);
 int setpriority(int);

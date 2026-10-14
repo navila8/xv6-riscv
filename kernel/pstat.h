@@ -13,6 +13,7 @@ enum procstate{
 	ZOMBIE
 };
 
+//info copied from kernel to user for ps
 struct pstat {
 	int pid; //Process ID
 	enum procstate state;// Process state

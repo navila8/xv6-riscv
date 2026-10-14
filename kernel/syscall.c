@@ -104,6 +104,7 @@ extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_sync(void);
+//PA2 
 extern uint64 sys_getprocs(void);
 extern uint64 sys_getpriority(void);
 extern uint64 sys_setpriority(void);
@@ -135,6 +136,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_mkdir]   = sys_mkdir,
   [SYS_close]   = sys_close,
   [SYS_sync]    = sys_sync,
+//routes syscall number to kernel handler
   [SYS_getprocs]   =sys_getprocs,
   [SYS_getpriority]  = sys_getpriority,
   [SYS_setpriority] = sys_setpriority,
